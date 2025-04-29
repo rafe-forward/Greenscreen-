@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Green Screen</title>
+    <style>
+        #webcamVideo {
+            display: none;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gl-canvas" width="800" height="600"></canvas>
+    <video id="webcamVideo" autoplay playsinline></video>
+
+    <div class="slider-container">
+        <label for="thresholdSlider">Threshold:</label>
+        <input type="range" id="thresholdSlider" min="0.0" max="0.5" step="0.01" value="0.2">
+    </div>
+    <div class="slider-container">
+        <label for="redSlider">Chroma Key - Red:</label>
+        <input type="range" id="redSlider" min="0.0" max="1.0" step="0.01" value="0.0">
+        <label for="greenSlider">Green:</label>
+        <input type="range" id="greenSlider" min="0.0" max="1.0" step="0.01" value="1.0">
+        <label for="blueSlider">Blue:</label>
+        <input type="range" id="blueSlider" min="0.0" max="1.0" step="0.01" value="0.0">
+    </div>
+    
+    <script id="vertex-shader-quad" type="x-shader/x-vertex">
+        #version 300 es
+        in vec4 aPosition;
+        in vec2 aTexCoord;
+        out vec2 vTexCoord;
+        void main() {
+            gl_Position = aPosition;
+            vTexCoord = aTexCoord;
+        }
+    </script>
+
+    <!-- calculates the difference between the chromakey and foreground, if within threshold then it replaces it-->
+    <script id="fragment-shader-quad" type="x-shader/x-fragment">
+        #version 300 es
+        precision mediump float;
+        in vec2 vTexCoord;
+        uniform sampler2D texturevid;
+        uniform sampler2D background;
+        uniform vec3 chromaKey;
+        uniform float threshold;
+        out vec4 fColor;
+        void main() {
+            //get textures
+            vec4 foreground = texture(texturevid, vTexCoord);
+            vec4 bg = texture(background, vTexCoord);
+            //if the background is close enough to the chromaKey then make it background pixel
+            float diff = distance(foreground.rgb, chromaKey);
+            if (diff < threshold) {
+                fColor = bg;
+            } else {
+                fColor = foreground;
+            }
+        }
+    </script>
+
+
+    <script id="vertex-shader-scene" type="x-shader/x-vertex">
+        #version 300 es
+        in vec4 aPosition;
+        in vec3 aNormal;
+        in vec2 aTexCoord;
+        uniform mat4 uModelViewMatrix;
+        uniform mat4 uProjectionMatrix;
+        uniform mat3 uNormalMatrix;
+        out vec3 vNormal;
+        out vec2 vTexCoord;
+        void main() {
+            gl_Position = uProjectionMatrix * uModelViewMatrix * aPosition;
+            vNormal = normalize(uNormalMatrix * aNormal);
+            vTexCoord = aTexCoord;
+        }
+    </script>
+    <!--uses ambient lighting-->
+    <script id="fragment-shader-scene" type="x-shader/x-fragment">
+        #version 300 es
+        precision mediump float;
+        in vec3 vNormal;
+        in vec2 vTexCoord;
+        uniform sampler2D uSampler;
+        uniform vec3 uLightDirection;
+        uniform vec4 uAmbientLight;
+        out vec4 fColor;
+        void main() {
+            vec3 normal = normalize(vNormal);
+            float diffuse = max(dot(normal, uLightDirection), 0.0);
+            vec4 texColor = texture(uSampler, vTexCoord);
+            vec3 lighting = texColor.rgb * diffuse + uAmbientLight.rgb * texColor.rgb;
+            fColor = vec4(lighting, texColor.a);
+        }
+    </script>
+
+    <script src="common/initShaders.js"></script>
+    <script src="common/MVnew.js"></script>
+    <script src="CG_F24_Program3x_ForwardRafe.js" defer></script>
+</body>
+</html>
